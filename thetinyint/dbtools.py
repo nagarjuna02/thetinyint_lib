@@ -27,58 +27,49 @@ class DataPipeline:
 
 class CSVToSQLHandler:
     def __init__(self, connection_string, chunk_size=1000):
+        # fast_executemany=True is the "Gold Standard" for SQL Server + Python
         self.engine = create_engine(connection_string, fast_executemany=True)
         self.chunk_size = chunk_size
 
     def _get_mapping(self, mapping_path):
-        """Reads mapping CSV and returns a dictionary {source: target}"""
         df_map = pd.read_csv(mapping_path)
         return dict(zip(df_map['source_col'], df_map['target_col']))
 
-    def process(self, csvfile, mapping, table_name, schema, mode):
-        print(f"--- Starting Load [{mode.upper()}]: {csvfile} ---")
-        start_time = time.time()
-        
-        # Load mapping
-        column_map = self._get_mapping(mapping)
+    def process(self, csv_source, mapping_path, table_name, schema, mode):
+        print(f"--- Starting Load [{mode.upper()}]: {csv_source} ---")
+        column_map = self._get_mapping(mapping_path)
         total_rows = 0
 
         try:
             with self.engine.begin() as conn:
-                # If mode is replace, we TRUNCATE instead of DROP to keep your schema/indexes intact
                 if mode == 'replace':
-                    print(f"Truncating table {schema}.{table_name}...")
                     conn.execute(text(f"TRUNCATE TABLE {schema}.{table_name}"))
                 
-                reader = pd.read_csv(csvfile, chunksize=self.chunk_size)
-                
-                for i, chunk in enumerate(reader):
-                    # 1. Rename columns based on mapping
-                    # 2. Only keep columns defined in the mapping
+                # Iterate through CSV in chunks
+                for chunk in pd.read_csv(csv_source, chunksize=self.chunk_size):
+                    # Map columns and filter to only those in the mapping
                     chunk = chunk.rename(columns=column_map)[list(column_map.values())]
                     
-                    # We always use 'append' here because 'replace' would drop the table every loop
-                    # We handled the "replace" logic above via TRUNCATE
+                    # method=None is faster for SQL Server when fast_executemany=True is set on engine
                     chunk.to_sql(
                         name=table_name,
                         con=conn,
                         schema=schema,
                         if_exists='append',
                         index=False,
-                        method='multi'
+                        method=None  # <--- CHANGED THIS
                     )
                     
                     total_rows += len(chunk)
-                    print(f"Batch {i+1} uploaded. Rows so far: {total_rows}")
+                    print(f"Uploaded {total_rows} rows...")
 
-            duration = round(time.time() - start_time, 2)
-            print(f"--- Success! Loaded {total_rows} rows in {duration}s ---")
+            print(f"--- Success! Loaded {total_rows} rows ---")
             return True
 
         except Exception as e:
             print(f"\n!!! ERROR !!!\n{str(e)}")
             return False
-
+        
 # --- Execution ---
 if __name__ == "__main__":
 # PARAMETERS
