@@ -3,18 +3,20 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "thetinyint_lib"
+name = "thetinyint"
 version = "0.1.0"
-description = "the tiny int utilities"
-authors = [{name = "Arjun", email = "nagarjuna02@gmail.com"}]
+description = "the tiny int tools for everyday coding"
+authors = [{name = "Arjun Bandi", email = "nagarjuna02@gmail.com"}]
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
     "azure-storage-blob",
     "pandas",
-    "pyyaml"
+    "pyyaml",
+    "sqlalchemy",
+    "pyodbc"
 ]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["thetinyint_lib*"]
+include = ["thetinyint*"]
